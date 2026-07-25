@@ -66,10 +66,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val intent = Intent(this, WalkieService::class.java)
-        ContextCompat.startForegroundService(this, intent)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE)
-
         setContent {
             MaterialTheme {
                 var micGranted by remember {
@@ -87,7 +83,22 @@ class MainActivity : ComponentActivity() {
                     if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
 
-                if (bound && service != null) {
+                // Only start the foreground service once the microphone permission is
+                // actually granted - Android refuses (and crashes) a microphone-type
+                // foreground service started before that permission exists.
+                LaunchedEffect(micGranted) {
+                    if (micGranted && !bound) {
+                        val intent = Intent(this@MainActivity, WalkieService::class.java)
+                        ContextCompat.startForegroundService(this@MainActivity, intent)
+                        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+                    }
+                }
+
+                if (!micGranted) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Talkie needs microphone access to work.\nPlease allow it to continue.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                } else if (bound && service != null) {
                     TalkieApp(service!!)
                 } else {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
