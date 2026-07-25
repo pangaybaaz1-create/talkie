@@ -24,9 +24,6 @@ import org.json.JSONObject
 import org.webrtc.AudioSource
 import org.webrtc.AudioTrack
 import org.webrtc.DataChannel
-import org.webrtc.DefaultVideoDecoderFactory
-import org.webrtc.DefaultVideoEncoderFactory
-import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
@@ -65,7 +62,6 @@ class WalkieService : Service() {
     private var webSocket: WebSocket? = null
     private var myPeerId: String = UUID.randomUUID().toString()
 
-    private lateinit var eglBase: EglBase
     private lateinit var factory: PeerConnectionFactory
     private var localAudioSource: AudioSource? = null
     private var localAudioTrack: AudioTrack? = null
@@ -77,14 +73,13 @@ class WalkieService : Service() {
     }
 
     private fun initWebRtc() {
-        eglBase = EglBase.create()
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(applicationContext)
                 .createInitializationOptions()
         )
+        // Audio-only app - no video encoder/decoder factories or EGL context needed.
+        // Setting those up from a headless background service is a common crash source.
         factory = PeerConnectionFactory.builder()
-            .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
-            .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .createPeerConnectionFactory()
 
         val audioConstraints = MediaConstraints()
