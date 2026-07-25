@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Talkie</title>
+<style>
+  :root {
+    --deep: #0B4F4A;
+    --mid: #12766D;
+    --bright: #1FA394;
+    --panel: #F4FBF9;
+    --bubble-out: #DCF3EC;
+    --ink: #0E2724;
+    --muted: #5C7A76;
+    --danger: #D9534F;
+    --live: #E4572E;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%; margin: 0; padding: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--panel); color: var(--ink); overscroll-behavior: none;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; max-width: 520px; margin: 0 auto; background: #fff; position: relative; overflow: hidden; }
+
+  /* ---------- Screens ---------- */
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: #fff; transition: transform .25s ease; }
+  .screen.hidden { transform: translateX(100%); pointer-events: none; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    background: var(--deep); color: #fff; padding: 14px 16px 14px 16px;
+    display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    box-shadow: 0 1px 0 rgba(0,0,0,.08);
+  }
+  .topbar h1 { font-size: 19px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  .topbar .sub { font-size: 12px; color: #BFE6DF; margin-top: 2px; }
+  .back-btn { background: none; border: none; color: #fff; font-size: 22px; padding: 4px 6px; cursor: pointer; line-height: 1; }
+  .icon-btn { background: none; border: none; color: #fff; font-size: 20px; padding: 6px; cursor: pointer; margin-left: auto; opacity: .95; }
+
+  /* ---------- Channel list ---------- */
+  .list { flex: 1; overflow-y: auto; }
+  .empty { padding: 60px 30px; text-align: center; color: var(--muted); }
+  .channel-row {
+    display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+    border-bottom: 1px solid #F0F0F0; cursor: pointer;
+  }
+  .channel-row:active { background: #F5FAF9; }
+  .avatar {
+    width: 48px; height: 48px; border-radius: 50%; background: var(--bright);
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    color: #fff; flex-shrink: 0;
+  }
+  .channel-meta { flex: 1; min-width: 0; }
+  .channel-name { font-size: 16px; font-weight: 600; }
+  .channel-status { font-size: 13px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fab {
+    position: absolute; right: 20px; bottom: 24px; width: 56px; height: 56px; border-radius: 50%;
+    background: var(--bright); color: #fff; border: none; font-size: 26px; box-shadow: 0 4px 12px rgba(0,0,0,.25);
+    cursor: pointer;
+  }
+
+  /* ---------- Channel (talk) screen ---------- */
+  .participants { flex: 1; overflow-y: auto; padding: 18px 16px 8px; }
+  .me-row, .peer-card {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; margin-bottom: 10px;
+    background: var(--bubble-out);
+  }
+  .peer-card.talking { background: #C9F0E4; box-shadow: 0 0 0 2px var(--bright); }
+  .peer-card .dot, .me-row .dot { width: 10px; height: 10px; border-radius: 50%; background: #9BB; margin-left: auto; flex-shrink: 0; }
+  .peer-card.talking .dot { background: var(--live); box-shadow: 0 0 0 5px rgba(228,87,46,.25); }
+  .peer-name { font-size: 15px; font-weight: 600; }
+  .peer-sub { font-size: 12px; color: var(--muted); }
+
+  .talk-area {
+    flex-shrink: 0; padding: 18px 20px 30px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+    background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.02));
+  }
+  .talk-status { font-size: 14px; color: var(--muted); min-height: 18px; }
+  .ptt-btn {
+    width: 128px; height: 128px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--mid); color: #fff; font-size: 15px; font-weight: 700; letter-spacing: .5px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    box-shadow: 0 6px 18px rgba(18,118,109,.4);
+    user-select: none; touch-action: none; transition: transform .08s ease, background .15s ease;
+  }
+  .ptt-btn.active { background: var(--live); transform: scale(1.08); box-shadow: 0 6px 22px rgba(228,87,46,.5); }
+  .ptt-btn .mic { font-size: 30px; display: block; margin-bottom: 4px; }
+
+  /* ---------- New channel screen ---------- */
+  .form { padding: 24px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .field label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 13px 14px; border-radius: 10px; border: 1px solid #DDE7E5; font-size: 16px; background: #FAFDFC;
+  }
+  .field input:focus { outline: none; border-color: var(--bright); }
+  .primary-btn {
+    background: var(--mid); color: #fff; border: none; padding: 14px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  .primary-btn:active { background: var(--deep); }
+  .hint { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+  .join-code { font-size: 13px; color: var(--muted); text-align: center; padding: 6px 0 0; }
+  .join-code b { color: var(--ink); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SCREEN 1: Channel list -->
+  <div class="screen" id="screen-list">
+    <div class="topbar">
+      <div>
+        <h1>Talkie</h1>
+        <div class="sub" id="my-name-label">Set your name to start</div>
+      </div>
+      <button class="icon-btn" id="rename-btn" title="Change name">&#9998;</button>
+    </div>
+    <div class="list" id="channel-list"></div>
+    <button class="fab" id="new-channel-btn">+</button>
+  </div>
+
+  <!-- SCREEN 2: New / join channel -->
+  <div class="screen hidden" id="screen-new">
+    <div class="topbar">
+      <button class="back-btn" id="new-back-btn">&#8592;</button>
+      <h1>Join a channel</h1>
+    </div>
+    <div class="form">
+      <div class="field">
+        <label>Channel name</label>
+        <input id="input-channel-name" placeholder="e.g. Family, Job Site, Trip">
+      </div>
+      <div class="field">
+        <label>Channel code</label>
+        <input id="input-channel-code" placeholder="Leave blank to create a new one">
+      </div>
+      <p class="hint">Everyone who enters the same code lands on the same channel, from anywhere &mdash; like tuning a radio to the same frequency. Share the code with the people you want on it.</p>
+      <button class="primary-btn" id="join-btn">Join channel</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: Talk screen -->
+  <div class="screen hidden" id="screen-talk">
+    <div class="topbar">
+      <button class="back-btn" id="talk-back-btn">&#8592;</button>
+      <div>
+        <h1 id="talk-channel-name">Channel</h1>
+        <div class="sub" id="talk-channel-sub">Connecting&hellip;</div>
+      </div>
+    </div>
+    <div class="participants" id="participants"></div>
+    <div class="talk-area">
+      <div class="join-code">Code: <b id="talk-channel-code">&mdash;</b></div>
+      <div class="talk-status" id="talk-status">Hold the button to talk</div>
+      <button class="ptt-btn" id="ptt-btn"><span><span class="mic">&#127908;</span>HOLD TO TALK</span></button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  // ---------- State ----------
+  let myName = '';
+  let channels = []; // {code, name}
+  let current = null; // {code, name}
+  let ws = null;
+  let localStream = null;
+  let micTrack = null;
+  const peers = new Map(); // peerId -> { pc, name, audioEl, talking }
+  const myPeerId = 'p-' + Math.random().toString(36).slice(2, 10);
+
+  const $ = (id) => document.getElementById(id);
+  const show = (id) => {
+    ['screen-list', 'screen-new', 'screen-talk'].forEach(s => $(s).classList.toggle('hidden', s !== id));
+  };
+
+  // ---------- Screen: name ----------
+  function ensureName(cb) {
+    if (myName) return cb();
+    const n = prompt('What should people hear you as?', '');
+    if (n && n.trim()) { myName = n.trim(); $('my-name-label').textContent = 'You: ' + myName; }
+    cb();
+  }
+  $('rename-btn').onclick = () => {
+    const n = prompt('Change your display name', myName);
+    if (n && n.trim()) { myName = n.trim(); $('my-name-label').textContent = 'You: ' + myName; }
+  };
+
+  // ---------- Screen: channel list ----------
+  function renderList() {
+    const list = $('channel-list');
+    if (channels.length === 0) {
+      list.innerHTML = '<div class="empty">No channels yet.<br>Tap + to create or join one.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    channels.forEach(ch => {
+      const row = document.createElement('div');
+      row.className = 'channel-row';
+      row.innerHTML = `
+        <div class="avatar">&#128225;</div>
+        <div class="channel-meta">
+          <div class="channel-name">${escapeHtml(ch.name)}</div>
+          <div class="channel-status">Code: ${escapeHtml(ch.code)}</div>
+        </div>`;
+      row.onclick = () => openChannel(ch);
+      list.appendChild(row);
+    });
+  }
+  function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  $('new-channel-btn').onclick = () => ensureName(() => { $('input-channel-name').value = ''; $('input-channel-code').value = ''; show('screen-new'); });
+  $('new-back-btn').onclick = () => show('screen-list');
+  $('talk-back-btn').onclick = () => leaveChannel();
+
+  $('join-btn').onclick = () => {
+    const name = $('input-channel-name').value.trim() || 'Channel';
+    let code = $('input-channel-code').value.trim().toUpperCase();
+    if (!code) code = Math.random().toString(36).slice(2, 7).toUpperCase();
+    const ch = { name, code };
+    if (!channels.find(c => c.code === code)) { channels.push(ch); renderList(); }
+    openChannel(ch);
+  };
+
+  // ---------- Channel / WebRTC ----------
+  function openChannel(ch) {
+    current = ch;
+    $('talk-channel-name').textContent = ch.name;
+    $('talk-channel-code').textContent = ch.code;
+    $('talk-channel-sub').textContent = 'Connecting…';
+    $('participants').innerHTML = '';
+    show('screen-talk');
+    connect(ch);
+  }
+
+  async function connect(ch) {
+    try {
+      if (!localStream) {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micTrack = localStream.getAudioTracks()[0];
+        micTrack.enabled = false; // muted until PTT is held
+      }
+    } catch (e) {
+      $('talk-status').textContent = 'Microphone permission is required to talk.';
+      return;
+    }
+
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host);
+
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'join', channel: ch.code, peerId: myPeerId, name: myName }));
+      $('talk-channel-sub').textContent = 'Connected';
+    };
+
+    ws.onclose = () => { $('talk-channel-sub').textContent = 'Disconnected'; };
+
+    ws.onmessage = async (evt) => {
+      const msg = JSON.parse(evt.data);
+
+      if (msg.type === 'channel-state') {
+        for (const p of msg.peers) {
+          addPeer(p.peerId, p.name);
+          await makeOffer(p.peerId);
+        }
+        return;
+      }
+      if (msg.type === 'peer-joined') {
+        addPeer(msg.peerId, msg.name);
+        return;
+      }
+      if (msg.type === 'peer-left') {
+        removePeer(msg.peerId);
+        return;
+      }
+      if (msg.type === 'talk-state') {
+        const p = peers.get(msg.peerId);
+        if (p) { p.talking = msg.talking; renderParticipants(); }
+        return;
+      }
+      if (msg.type === 'signal') {
+        await handleSignal(msg.from, msg.data);
+        return;
+      }
+    };
+  }
+
+  function addPeer(peerId, name) {
+    if (peers.has(peerId)) return;
+    peers.set(peerId, { pc: null, name: name || 'Someone', audioEl: null, talking: false });
+    renderParticipants();
+  }
+  function removePeer(peerId) {
+    const p = peers.get(peerId);
+    if (p) { if (p.pc) p.pc.close(); if (p.audioEl) p.audioEl.remove(); }
+    peers.delete(peerId);
+    renderParticipants();
+  }
+
+  function newPC(peerId) {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    pc.onicecandidate = (e) => {
+      if (e.candidate) ws.send(JSON.stringify({ type: 'signal', to: peerId, data: { candidate: e.candidate } }));
+    };
+    pc.ontrack = (e) => {
+      const p = peers.get(peerId);
+      if (!p) return;
+      if (!p.audioEl) {
+        const audio = document.createElement('audio');
+        audio.autoplay = true;
+        audio.playsInline = true;
+        document.body.appendChild(audio);
+        p.audioEl = audio;
+      }
+      p.audioEl.srcObject = e.streams[0];
+    };
+    const p = peers.get(peerId);
+    if (p) p.pc = pc;
+    return pc;
+  }
+
+  async function makeOffer(peerId) {
+    const pc = newPC(peerId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    ws.send(JSON.stringify({ type: 'signal', to: peerId, data: { sdp: offer } }));
+  }
+
+  async function handleSignal(fromId, data) {
+    if (!peers.has(fromId)) addPeer(fromId, 'Someone');
+    let p = peers.get(fromId);
+    let pc = p.pc || newPC(fromId);
+
+    if (data.sdp) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      if (data.sdp.type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ type: 'signal', to: fromId, data: { sdp: answer } }));
+      }
+    } else if (data.candidate) {
+      try { await pc.addIceCandidate(data.candidate); } catch (e) {}
+    }
+  }
+
+  function renderParticipants() {
+    const box = $('participants');
+    let html = `<div class="me-row"><div class="peer-name">You (${escapeHtml(myName)})</div><div class="dot"></div></div>`;
+    if (peers.size === 0) {
+      html += '<div class="empty" style="padding:24px 4px;">Waiting for others to join this channel…</div>';
+    } else {
+      for (const [, p] of peers) {
+        html += `<div class="peer-card ${p.talking ? 'talking' : ''}">
+          <div><div class="peer-name">${escapeHtml(p.name)}</div><div class="peer-sub">${p.talking ? 'Talking…' : 'Listening'}</div></div>
+          <div class="dot"></div>
+        </div>`;
+      }
+    }
+    box.innerHTML = html;
+  }
+
+  function leaveChannel() {
+    if (ws) { ws.close(); ws = null; }
+    for (const [id] of peers) removePeer(id);
+    if (micTrack) micTrack.enabled = false;
+    setTalking(false);
+    current = null;
+    show('screen-list');
+  }
+
+  // ---------- Push to talk ----------
+  const pttBtn = $('ptt-btn');
+  function setTalking(on) {
+    pttBtn.classList.toggle('active', on);
+    $('talk-status').textContent = on ? 'Talking… release to listen' : 'Hold the button to talk';
+    if (micTrack) micTrack.enabled = on;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'talk-state', talking: on }));
+  }
+  ['mousedown', 'touchstart'].forEach(evt => pttBtn.addEventListener(evt, (e) => { e.preventDefault(); setTalking(true); }));
+  ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(evt => pttBtn.addEventListener(evt, (e) => { e.preventDefault(); setTalking(false); }));
+
+  // ---------- Init ----------
+  renderList();
+  show('screen-list');
+})();
+</script>
+</body>
+</html>
